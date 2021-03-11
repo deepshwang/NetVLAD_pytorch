@@ -1,0 +1,1 @@
+python train.py --call_db ./cache/dbfeat_tokyo247_vgg16_956110.hdf5 --call_q ./cache/qfeat_tokyo247_vgg16_238623.hdf5
