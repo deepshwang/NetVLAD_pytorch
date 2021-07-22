@@ -3,8 +3,8 @@ from utils.argparse import argument_parser
 from utils.tools import import_yaml
 import pdb
 from math import ceil
-from dataloader.dataset import *
-from dataloader.transforms import *
+from dataset.tokyoTM import *
+from dataset.transforms import *
 from torch.utils.data import DataLoader, RandomSampler
 import numpy as np
 
@@ -20,7 +20,7 @@ if __name__ == '__main__':
     encoder = NetVLAD(config).encoder.to(device)
 
     # Dataloader to extract descriptors from
-    dataset = Tokyo247TrainQueryDataset(config, T_TOKYO)
+    dataset = TokyoTMTrainWholeDataset(config, T_TOKYO)
 
     # Number of images to randomly sample from
     nDescriptors = config['data']['centroids']['nDescriptors']
