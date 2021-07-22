@@ -1,1 +1,3 @@
 cache/*
+statedict/*
+wandb/*

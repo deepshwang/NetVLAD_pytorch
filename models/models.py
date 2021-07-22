@@ -11,26 +11,25 @@ import pdb
 class NetVLADLayer(nn.Module):
     """NetVLAD Module Implementation"""
 
-    def __init__(self, args):
+    def __init__(self, config):
         """
         Args
             args.num_clusters : Number of clusters
             args.dim = channel-wise dimension of feature space
         """
         super(NetVLADLayer, self).__init__()
-        self.num_clusters = args.num_clusters
-        self.feature_dim = args.feature_dim
+        self.num_clusters = config['model']['num_clusters']
+        self.encoder_dim = config['model']['encoder_dim']
+        self.centroid_cache = config['cacheroot']['centroid_cache']
         self.alpha = 0
-        self.centroids = nn.Parameter(torch.rand(self.num_clusters, self.feature_dim))
-        self.soft_assign = nn.Conv2d(args.feature_dim, args.num_clusters, kernel_size=1, bias=False)
-        self.args = args
+        self.centroids = nn.Parameter(torch.rand(self.num_clusters, self.encoder_dim))
+        self.soft_assign = nn.Conv2d(self.encoder_dim, self.num_clusters, kernel_size=1, bias=False)
 
 
     def init_parameters(self):
         # Initialize: centroids
-        cache_init_path = './cache/' + 'centroids_descriptors_' + self.args.dataset + '_' + self.args.backbone + ".hdf5"
-        print("Initializing centroids and alpha using: ", cache_init_path)
-        with h5py.File(cache_init_path, mode='r') as h5:
+        print("=====> Initializing centroids and alpha using: ", self.centroid_cache)
+        with h5py.File(self.centroid_cache, mode='r') as h5:
             centroids = h5.get("centroids")[...]
             descriptors = h5.get("descriptors")[...]
 
@@ -49,6 +48,7 @@ class NetVLADLayer(nn.Module):
     def forward(self, x):
         B, C = x.shape[:2]
 
+        x = F.normalize(x, p=2, dim=1)
         soft_assign = self.soft_assign(x).view(B, self.num_clusters, -1)
         soft_assign = F.softmax(soft_assign, dim=1)
 
@@ -77,20 +77,25 @@ class L2Norm(nn.Module):
     def forward(self, input):
         return F.normalize(input, p=2, dim=self.dim)
 
-class NetVLAD(nn.Module):
-    def __init__(self, args):
-        super(NetVLAD, self).__init__()
-        self.encoder = self.get_encoder(args)
-        self.netvlad = NetVLADLayer(args)
 
-    def get_encoder(self, args):
+class NetVLAD(nn.Module):
+    def __init__(self, config):
+        super(NetVLAD, self).__init__()
+        self.encoder = self.buildEncoder(config)
+        self.netvlad = NetVLADLayer(config)
+
+    def buildEncoder(self, config):
         layers=[]
-        if args.backbone == 'resnet50':  # Last ReLU is included unlike configurations for VGG16
-            backbone = models.resnet50(pretrained=args.pretrained)
+        if config['model']['backbone'] == 'resnet50':  # Last ReLU is included unlike configurations for VGG16
+            backbone = models.resnet50(pretrained=True)
             layers = list(backbone.children())[:-2]
-        elif args.backbone == 'vgg16':
-            backbone = models.vgg16(pretrained=args.pretrained)
+        elif config['model']['backbone'] == 'vgg16':
+            backbone = models.vgg16(pretrained=True)
             layers = list(backbone.features.children())[:-2]
+            for l in layers[:-5]: 
+                for p in l.parameters():
+                    p.requires_grad = False
+
         layers.append(L2Norm())
         encoder = nn.Sequential(*layers)
 
@@ -98,7 +103,6 @@ class NetVLAD(nn.Module):
 
     def forward(self, x):
         x = self.encoder(x)
-        pdb.set_trace()
         x = self.netvlad(x)
         return x
 
